@@ -33,7 +33,7 @@ case class SchwabAuth private(
 
   def get(request: StandaloneAhcWSRequest): Future[StandaloneWSResponse] = {
     request
-      .withHttpHeaders(
+      .addHttpHeaders(
         "Authorization" -> f"Bearer $accessToken"
       ).get()
       .map {
@@ -55,7 +55,7 @@ case class SchwabAuth private(
 
   def post[T: BodyWritable](request: StandaloneAhcWSRequest, body: T): Future[StandaloneWSResponse] = {
     request
-      .withHttpHeaders(
+      .addHttpHeaders(
         "Authorization" -> f"Bearer $accessToken"
       )
       .post(body)
