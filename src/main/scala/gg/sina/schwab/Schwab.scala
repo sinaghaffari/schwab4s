@@ -29,14 +29,14 @@ class Schwab(
 
       def accounts: RIO[Scope, Vector[Account]] = handle[Vector[Account]](
         Request
-          .get("https://api.schwabapi.com/trader/v1/accounts/accountNumbers")
+          .get("https://api.schwabapi.com/trader/v1/accounts")
           .addQueryParam("fields", "positions")
           .addHeader(Header.Accept(MediaType.application.json))
       )
 
       def accounts(accountHash: String): RIO[Scope, Account] = handle[Account](
         Request
-          .get(f"https://api.schwabapi.com/trader/v1/accounts/accountNumbers/$accountHash")
+          .get(f"https://api.schwabapi.com/trader/v1/accounts/$accountHash")
           .addQueryParam("fields", "positions")
           .addHeader(Header.Accept(MediaType.application.json))
       )
