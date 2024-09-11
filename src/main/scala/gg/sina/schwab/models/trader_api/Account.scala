@@ -1,10 +1,10 @@
 package gg.sina.schwab
 package models.trader_api
 
-import play.api.libs.json.{Json, Reads}
+import zio.json.{DeriveJsonDecoder, JsonDecoder}
 
 case class Account(securitiesAccount: SecuritiesAccount)
 
 object Account {
-  implicit val account: Reads[Account] = Json.reads[Account]
+  implicit val accountCodec: JsonDecoder[Account] = DeriveJsonDecoder.gen[Account]
 }

@@ -1,9 +1,8 @@
 package gg.sina.schwab
 package models.trader_api
 
-import enumeratum.EnumEntry.UpperSnakecase
-import enumeratum.{Enum, EnumEntry, PlayJsonEnum}
-import play.api.libs.json.*
+import zio.json.ast.{Json, JsonCursor}
+import zio.json.{DeriveJsonDecoder, JsonDecoder}
 
 sealed trait SecuritiesAccount {
   val `type`: SecuritiesAccount.AccountType
@@ -91,8 +90,8 @@ object SecuritiesAccount {
       unsettledCash: Option[BigDecimal],
     )
 
-    implicit val cashInitialBalanceReads: Reads[CashInitialBalance] = Json.reads[CashInitialBalance]
-    implicit val cashBalanceReads: Reads[CashBalance] = Json.reads[CashBalance]
+    implicit val cashInitialBalanceDecoder: JsonDecoder[CashInitialBalance] = DeriveJsonDecoder.gen[CashInitialBalance]
+    implicit val cashBalanceDecoder: JsonDecoder[CashBalance] = DeriveJsonDecoder.gen[CashBalance]
   }
   object MarginAccount {
     case class MarginInitialBalance(
@@ -152,23 +151,21 @@ object SecuritiesAccount {
       optionBuyingPower: Option[BigDecimal],
     )
 
-    implicit val marginInitialBalanceReads: Reads[MarginInitialBalance] = Json.reads[MarginInitialBalance]
-    implicit val marginBalanceReads: Reads[MarginBalance] = Json.reads[MarginBalance]
+    implicit val marginInitialBalanceDecoder: JsonDecoder[MarginInitialBalance] = DeriveJsonDecoder.gen[MarginInitialBalance]
+    implicit val marginBalanceDecoder: JsonDecoder[MarginBalance] = DeriveJsonDecoder.gen[MarginBalance]
   }
   
-  sealed trait AccountType extends EnumEntry with UpperSnakecase
-  object AccountType extends Enum[AccountType] with PlayJsonEnum[AccountType] {
-    case object Cash extends AccountType
-    case object Margin extends AccountType
-
-    val values: IndexedSeq[AccountType] = findValues
-  }
-
-  implicit val marginAccountReads: Reads[MarginAccount] = Json.reads[MarginAccount]
-  implicit val cashAccountReads: Reads[CashAccount] = Json.reads[CashAccount]
-  implicit val securitiesAccountReads: Reads[SecuritiesAccount] = (json: JsValue) => (json \ "type").validate[AccountType] match {
-    case JsSuccess(AccountType.Cash, _) => cashAccountReads.reads(json)
-    case JsSuccess(AccountType.Margin, _) => marginAccountReads.reads(json)
-    case error: JsError => error
+  type AccountType = "CASH" | "MARGIN"
+  
+  private implicit val marginAccountDecoder: JsonDecoder[MarginAccount] = DeriveJsonDecoder.gen[MarginAccount]
+  private implicit val cashAccountDecoder: JsonDecoder[CashAccount] = DeriveJsonDecoder.gen[CashAccount]
+  
+  implicit val securitiesAccountDecoder: JsonDecoder[SecuritiesAccount] = JsonDecoder[Json].mapOrFail { json =>
+    json.get(JsonCursor.field("type").isString) match {
+      case Left(value) => Left(value)
+      case Right(Json.Str("CASH")) => json.as[CashAccount]
+      case Right(Json.Str("MARGIN")) => json.as[MarginAccount]
+      case Right(Json.Str(accountType)) => Left(f"$accountType is not a valid type.")
+    }
   }
 }

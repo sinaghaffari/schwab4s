@@ -18,28 +18,22 @@ schwab {
 
 ## Usage
 ```scala 3
-import scala.concurrent.ExecutionContext
-import org.apache.pekko.util.Timeout
-
-import org.apache.pekko.actor.typed.ActorSystem
-import play.api.libs.ws.ahc.StandaloneAhcWSClient
-import scala.concurrent.duration.*
-import org.apache.pekko.actor.typed.scaladsl.Behaviors
-
 import gg.sina.schwab.Schwab
-import gg.sina.schwab.models.trader_api.{Account, AccountNumberHash}
+import zio.*
+import zio.connect.file
+import zio.connect.file.FileConnector
+import zio.http.*
 
-object Example extends App {
-  implicit val system: ActorSystem[?] = ActorSystem(Behaviors.same, "system")
-  implicit val ec: ExecutionContext = system.executionContext
-  implicit val ws: StandaloneAhcWSClient = StandaloneAhcWSClient()
-  implicit val timeout: Timeout = 30.seconds
-  val schwab: Schwab = Schwab()
 
-  val accounts: Future[Vector[Account]] = schwab.TraderAPI.Accounts.accounts
-  val accountNumbers: Future[Vector[AccountNumberHash]] = schwab.TraderAPI.Accounts.accountNumbers
-  
-  val quotes: Future[Map[String, QuoteResponse]] = schwab.MarketDataAPI.quote(Vector("NVDA", "VOO"))
+object Example extends ZIOAppDefault {
+  private val program: ZIO[Scope & Schwab, Throwable, Unit] = for {
+    schwab <- ZIO.service[Schwab]
+    accountNumbers <- schwab.TraderAPI.Accounts.accountNumbers
+    accounts <- schwab.TraderAPI.Accounts.accounts
+    quotes <- schwab.MarketDataAPI.quote(Vector("NVDA", "VOO"))
+  } yield ()
+  def run: ZIO[ZIOAppArgs & Scope, Any, Any] = program
+    .provide(Client.default, Scope.default, file.fileConnectorLiveLayer, Schwab.layer)
 }
 ```
 

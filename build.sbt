@@ -11,21 +11,21 @@ githubTokenSource := TokenSource.GitConfig("tokens.sbt")
 githubOwner := "sinaghaffari"
 githubRepository := "schwab4s"
 
+scalacOptions ++= Seq(
+  "-Xmax-inlines", "64"
+)
+
 lazy val root = (project in file("."))
   .settings(
     name := "schwab4s",
   )
 
-libraryDependencies += "org.playframework" %% "play-ahc-ws-standalone" % "3.1.0-M2"
-libraryDependencies += "org.playframework" %% "play-ws-standalone-json" % "3.1.0-M2"
-libraryDependencies += "org.playframework" %% "play-json" % "3.1.0-M1"
-
-libraryDependencies += "org.apache.pekko" %% "pekko-actor-typed" % "1.1.0"
-
 libraryDependencies += "joda-time" % "joda-time" % "2.12.7"
-libraryDependencies += "com.beachape" %% "enumeratum" % "1.7.4"
-libraryDependencies += "com.beachape" %% "enumeratum-play-json" % "1.8.1"
 
-libraryDependencies += "gg.sina" %% "monadic-simplifier" % "0.1.0"
-libraryDependencies += "gg.sina" %% "monadic-simplifier-play-json" % "0.1.0"
-libraryDependencies += "gg.sina" %% "agent" % "0.1.1"
+libraryDependencies += "dev.zio" %% "zio" % "2.1.9"
+libraryDependencies += "dev.zio" %% "zio-connect-file" % "0.4.4"
+libraryDependencies += "dev.zio" %% "zio-json" % "0.7.3"
+libraryDependencies += "dev.zio" %% "zio-http" % "3.0.0"
+libraryDependencies += "dev.zio" %% "zio-config" % "4.0.2"
+libraryDependencies += "dev.zio" %% "zio-config-typesafe" % "4.0.2"
+libraryDependencies += "dev.zio" %% "zio-config-magnolia" % "4.0.2"

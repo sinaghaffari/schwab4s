@@ -4,3 +4,7 @@ target/
 .bsp/
 
 .DS_Store
+
+refresh_token.txt
+src/main/resources/
+src/main/scala/gg/sina/Main.scala

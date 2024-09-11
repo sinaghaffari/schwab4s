@@ -1,12 +1,9 @@
-package gg.sina.schwab
-package models.market_data_api
+package gg.sina.schwab.models.market_data_api
 
-import enumeratum.EnumEntry.{UpperSnakecase, Uppercase}
-import enumeratum.values.{IntEnum, IntEnumEntry, IntPlayJsonValueEnum}
-import enumeratum.{Enum, EnumEntry, PlayJsonEnum}
-import gg.sina.schwab.JsonReads.*
 import org.joda.time.{DateTime, LocalDate}
-import play.api.libs.json.*
+import zio.json.ast.{Json, JsonCursor}
+import zio.json.{DeriveJsonDecoder, JsonDecoder}
+import gg.sina.schwab.JsonCodecs._
 
 sealed trait QuoteResponse
 
@@ -19,7 +16,9 @@ object QuoteResponse {
     val quote: Q
     val reference: R
   }
+
   sealed trait InvalidQuoteResponse extends QuoteResponse
+
   sealed trait Quote {
     val closePrice: BigDecimal
     val netChange: BigDecimal
@@ -28,48 +27,16 @@ object QuoteResponse {
     val tradeTime: DateTime
     val lastPrice: BigDecimal
   }
+
   sealed trait Reference {
     val description: String
     val exchange: String
     val exchangeName: String
   }
-  sealed trait AssetMainType extends EnumEntry
-  case object AssetMainType extends Enum[AssetMainType] with PlayJsonEnum[AssetMainType] {
-//    case object Bond          extends AssetMainType with UpperSnakecase
-    case object Equity        extends AssetMainType with UpperSnakecase
-    case object Forex         extends AssetMainType with UpperSnakecase
-    case object Future        extends AssetMainType with UpperSnakecase
-    case object FutureOption  extends AssetMainType with UpperSnakecase
-    case object Index         extends AssetMainType with UpperSnakecase
-    case object MutualFund    extends AssetMainType with UpperSnakecase
-    case object Option        extends AssetMainType with UpperSnakecase
 
-    val values: IndexedSeq[AssetMainType] = findValues
-  }
-  sealed abstract class DivFreq(override val value: Int) extends IntEnumEntry
-  object DivFreq extends IntEnum[DivFreq] with IntPlayJsonValueEnum[DivFreq] {
-    case object `0` extends DivFreq(0)
-    case object `1` extends DivFreq(1)
-    case object `2` extends DivFreq(2)
-    case object `3` extends DivFreq(3)
-    case object `4` extends DivFreq(4)
-    case object `6` extends DivFreq(6)
-    case object `11` extends DivFreq(11)
-    case object `12` extends DivFreq(12)
+  type AssetMainType = "EQUITY" | "FOREX" | "FUTURE" | "FUTURE_OPTION" | "INDEX" | "MUTUAL_FUND" | "OPTION"
+  type FundStrategy = "A" | "L" | "P" | "Q" | "S"
 
-    val values: IndexedSeq[DivFreq] = IndexedSeq(`0`, `1`, `2`, `3`, `4`, `6`, `11`, `12`)
-  }
-
-  sealed abstract class FundStrategy(override val entryName: String) extends EnumEntry
-  object FundStrategy extends Enum[FundStrategy] with PlayJsonEnum[FundStrategy] {
-    case object Active extends FundStrategy("A")
-    case object Leveraged extends FundStrategy("L")
-    case object Passive extends FundStrategy("P")
-    case object Quantitative extends FundStrategy("Q")
-    case object Short extends FundStrategy("S")
-
-    val values: IndexedSeq[FundStrategy] = findValues
-  }
   /**
    * Fundamentals of a security.
    *
@@ -95,7 +62,7 @@ object QuoteResponse {
     declarationDate: Option[DateTime],
     divAmount: BigDecimal,
     divExDate: Option[DateTime],
-    divFreq: Option[DivFreq],
+    divFreq: Option[Int],
     divPayAmount: BigDecimal,
     divPayDate: Option[DateTime],
     divYield: BigDecimal,
@@ -123,99 +90,83 @@ object QuoteResponse {
    * @param regular       Market info of security
    */
   case class EquityResponse(
-    assetMainType: AssetMainType,
+    assetMainType: "EQUITY",
     assetSubType: Option[EquityResponse.EquityAssetSubType],
     ssid: Option[Long],
     symbol: String,
     realtime: Boolean,
     quoteType: Option[EquityResponse.QuoteType],
     extended: Option[EquityResponse.ExtendedMarket],
-    fundamental: Fundamental,
+    fundamental: Option[Fundamental],
     quote: EquityResponse.QuoteEquity,
     reference: EquityResponse.ReferenceEquity,
-    regular: EquityResponse.RegularMarket,
+    regular: Option[EquityResponse.RegularMarket],
   ) extends ValidQuoteResponse[EquityResponse.QuoteEquity, EquityResponse.ReferenceEquity]
+
   case class OptionResponse(
-    assetMainType: AssetMainType,
+    assetMainType: "OPTION",
     ssid: Option[Long],
     symbol: String,
     realtime: Boolean,
     quote: OptionResponse.QuoteOption,
     reference: OptionResponse.ReferenceOption
   ) extends ValidQuoteResponse[OptionResponse.QuoteOption, OptionResponse.ReferenceOption]
+
   case class ForexResponse(
-    assetMainType: AssetMainType,
+    assetMainType: "FOREX",
     ssid: Option[Long],
     symbol: String,
     realtime: Boolean,
     quote: ForexResponse.QuoteForex,
     reference: ForexResponse.ReferenceForex,
   ) extends ValidQuoteResponse[ForexResponse.QuoteForex, ForexResponse.ReferenceForex]
+
   case class FutureResponse(
-    assetMainType: AssetMainType,
+    assetMainType: "FUTURE",
     ssid: Option[Long],
     symbol: String,
     realtime: Boolean,
     quote: FutureResponse.QuoteFuture,
     reference: FutureResponse.ReferenceFuture
   ) extends ValidQuoteResponse[FutureResponse.QuoteFuture, FutureResponse.ReferenceFuture]
+
   case class FutureOptionResponse(
-    assetMainType: AssetMainType,
+    assetMainType: "FUTURE_OPTION",
     ssid: Option[Long],
     symbol: String,
     realtime: Boolean,
     quote: FutureOptionResponse.QuoteFutureOption,
     reference: FutureOptionResponse.ReferenceFutureOption,
   ) extends ValidQuoteResponse[FutureOptionResponse.QuoteFutureOption, FutureOptionResponse.ReferenceFutureOption]
+
   case class IndexResponse(
-    assetMainType: AssetMainType,
+    assetMainType: "INDEX",
     ssid: Option[Long],
     symbol: String,
     realtime: Boolean,
     quote: IndexResponse.QuoteIndex,
     reference: IndexResponse.ReferenceIndex,
   ) extends ValidQuoteResponse[IndexResponse.QuoteIndex, IndexResponse.ReferenceIndex]
+
   case class MutualFundResponse(
-    assetMainType: AssetMainType,
+    assetMainType: "MUTUAL_FUND",
     ssid: Option[Long],
     symbol: String,
     realtime: Boolean,
-    fundamental: Fundamental,
+    fundamental: Option[Fundamental],
     quote: MutualFundResponse.QuoteMutualFund,
     reference: MutualFundResponse.ReferenceMutualFund,
   ) extends ValidQuoteResponse[MutualFundResponse.QuoteMutualFund, MutualFundResponse.ReferenceMutualFund]
+
   case class QuoteError(
     invalidCusips: Option[Vector[String]],
     invalidSSIDs: Option[Vector[Long]],
     invalidSymbols: Option[Vector[String]],
   ) extends InvalidQuoteResponse
 
-
   object EquityResponse {
-    sealed trait EquityAssetSubType extends EnumEntry
-    object EquityAssetSubType extends Enum[EquityAssetSubType] with PlayJsonEnum[EquityAssetSubType] {
-      case object COE extends EquityAssetSubType with UpperSnakecase
-      case object PRF extends EquityAssetSubType with UpperSnakecase
-      case object ADR extends EquityAssetSubType with UpperSnakecase
-      case object GDR extends EquityAssetSubType with UpperSnakecase
-      case object CEF extends EquityAssetSubType with UpperSnakecase
-      case object ETF extends EquityAssetSubType with UpperSnakecase
-      case object ETN extends EquityAssetSubType with UpperSnakecase
-      case object UIT extends EquityAssetSubType with UpperSnakecase
-      case object WAR extends EquityAssetSubType with UpperSnakecase
-      case object RGT extends EquityAssetSubType with UpperSnakecase
-
-      val values: IndexedSeq[EquityAssetSubType] = findValues
-    }
-    sealed trait QuoteType extends EnumEntry
-    object QuoteType extends Enum[QuoteType] with PlayJsonEnum[QuoteType] {
-      /** realtime */
-      case object NBBO extends QuoteType with Uppercase
-      /** Non-fee Liable */
-      case object NFL extends QuoteType with Uppercase
-
-      val values: IndexedSeq[QuoteType] = findValues
-    }
+    type EquityAssetSubType = "COE" | "PRF" | "ADR" | "GDR" | "CEF" | "ETF" | "ETN" | "UIT" | "WAR" | "RGT"
+    type QuoteType = "NBBO" | "NFL"
 
     /**
      * Quote data for extended hours
@@ -346,88 +297,56 @@ object QuoteResponse {
       regularMarketPercentChange: BigDecimal,
       regularMarketTradeTime: DateTime,
     )
-
-    private[QuoteResponse] implicit val extendedMarketReads: Reads[ExtendedMarket] = Json.reads[ExtendedMarket]
-    private[QuoteResponse] implicit val quoteEquityReads: Reads[QuoteEquity] = Json.reads[QuoteEquity]
-    private[QuoteResponse] implicit val referenceEquityReads: Reads[ReferenceEquity] = Json.reads[ReferenceEquity]
-    private[QuoteResponse] implicit val regularMarketReads: Reads[RegularMarket] = Json.reads[RegularMarket]
+    private[QuoteResponse] implicit val extendedMarketDecoder: JsonDecoder[ExtendedMarket] = DeriveJsonDecoder.gen[ExtendedMarket]
+    private[QuoteResponse] implicit val quoteEquityDecoder: JsonDecoder[QuoteEquity] = DeriveJsonDecoder.gen[QuoteEquity]
+    private[QuoteResponse] implicit val referenceEquityDecoder: JsonDecoder[ReferenceEquity] = DeriveJsonDecoder.gen[ReferenceEquity]
+    private[QuoteResponse] implicit val regularMarketDecoder: JsonDecoder[RegularMarket] = DeriveJsonDecoder.gen[RegularMarket]
   }
   object OptionResponse {
-    sealed abstract class ContractType(override val entryName: String) extends EnumEntry
-    object ContractType extends Enum[ContractType] with PlayJsonEnum[ContractType] {
-      case object Call extends ContractType("C")
-      case object Put extends ContractType("P")
-
-      val values: IndexedSeq[ContractType] = findValues
-    }
-    sealed abstract class ExerciseType(override val entryName: String) extends EnumEntry
-    object ExerciseType extends Enum[ExerciseType] with PlayJsonEnum[ExerciseType] {
-      case object American extends ExerciseType("A")
-      case object European extends ExerciseType("E")
-
-      val values: IndexedSeq[ExerciseType] = findValues
-    }
-    sealed abstract class ExpirationType(override val entryName: String) extends EnumEntry
-    object ExpirationType extends Enum[ExpirationType] with PlayJsonEnum[ExpirationType] {
-      /** Expires 3rd Friday of the month (also known as regular options) */
-      case object Regular extends ExpirationType("S")
-      /** Weekly expiration (also called Friday Short Term Expirations) */
-      case object EndOfWeek extends ExpirationType("W")
-      /** End Of Month Expiration Calendar Cycle (To match the last business day of the month) */
-      case object EndOfMonth extends ExpirationType("M")
-      /** Quarterly expirations (last business day of the quarter month MAR/JUN/SEP/DEC) */
-      case object EndOfQuarter extends ExpirationType("Q")
-
-      val values: IndexedSeq[ExpirationType] = findValues
-    }
-    sealed trait SettlementType extends EnumEntry
-    object SettlementType extends Enum[SettlementType] with PlayJsonEnum[SettlementType] {
-      case object AM extends SettlementType with Uppercase
-      case object PM extends SettlementType with Uppercase
-      case object P extends SettlementType with Uppercase
-
-      val values: IndexedSeq[SettlementType] = findValues
-    }
+    type ContractType = "C" | "P"
+    type ExerciseType = "A" | "E"
+    type ExpirationType = "S"| "W" | "M" | "Q"
+    type SettlementType = "AM" | "PM" | "P"
 
     /**
      * Quote data of Option security
      *
-     * @param `52WeekHigh` Highest price traded in the past 12 months, or 52 weeks
-     * @param `52WeekLow` Lowest price traded in the past 12 months, or 52 weeks
-     * @param askPrice Current Best Ask Price
-     * @param askSize Number of shares for ask
-     * @param bidPrice Current Best Bid Price
-     * @param bidSize Number of shares for bid
-     * @param closePrice Previous day's closing price
-     * @param delta Delta Value
-     * @param gamma Gamma Value
-     * @param highPrice Day's high trade price
-     * @param indAskPrice Indicative Ask Price applicable only for Indicative Option Symbols
-     * @param indBidPrice Indicative Bid Price applicable only for Indicative Option Symbols
-     * @param indQuoteTime Indicative Quote Time applicable only for Indicative Option Symbols
-     * @param impliedYield Implied Yield
-     * @param lastPrice Last Price
-     * @param lastSize Number of shares traded with last trade
-     * @param lowPrice Day's low trade price
-     * @param mark Mark price
-     * @param markChange Mark Price change
-     * @param markPercentChange Mark Price percent change
-     * @param moneyIntrinsicValue Money Intrinsic Value
-     * @param netChange Current Last-Prev Close
-     * @param netPercentChange Net Percentage Change
-     * @param openInterest Open Interest
-     * @param openPrice Price at market open
-     * @param quoteTime Last quote time in milliseconds since Epoch
-     * @param rho Rho Value
-     * @param securityStatus Status of security
+     * @param `52WeekHigh`           Highest price traded in the past 12 months, or 52 weeks
+     * @param `52WeekLow`            Lowest price traded in the past 12 months, or 52 weeks
+     * @param askPrice               Current Best Ask Price
+     * @param askSize                Number of shares for ask
+     * @param bidPrice               Current Best Bid Price
+     * @param bidSize                Number of shares for bid
+     * @param closePrice             Previous day's closing price
+     * @param delta                  Delta Value
+     * @param gamma                  Gamma Value
+     * @param highPrice              Day's high trade price
+     * @param indAskPrice            Indicative Ask Price applicable only for Indicative Option Symbols
+     * @param indBidPrice            Indicative Bid Price applicable only for Indicative Option Symbols
+     * @param indQuoteTime           Indicative Quote Time applicable only for Indicative Option Symbols
+     * @param impliedYield           Implied Yield
+     * @param lastPrice              Last Price
+     * @param lastSize               Number of shares traded with last trade
+     * @param lowPrice               Day's low trade price
+     * @param mark                   Mark price
+     * @param markChange             Mark Price change
+     * @param markPercentChange      Mark Price percent change
+     * @param moneyIntrinsicValue    Money Intrinsic Value
+     * @param netChange              Current Last-Prev Close
+     * @param netPercentChange       Net Percentage Change
+     * @param openInterest           Open Interest
+     * @param openPrice              Price at market open
+     * @param quoteTime              Last quote time in milliseconds since Epoch
+     * @param rho                    Rho Value
+     * @param securityStatus         Status of security
      * @param theoreticalOptionValue Theoretical option Value
-     * @param theta Theta Value
-     * @param timeValue Time Value
-     * @param totalVolume Aggregated shares traded throughout the day, including pre/post market hours.
-     * @param tradeTime Last trade time in milliseconds since Epoch
-     * @param underlyingPrice Underlying Price
-     * @param vega Vega Value
-     * @param volatility Option Risk/Volatility Measurement
+     * @param theta                  Theta Value
+     * @param timeValue              Time Value
+     * @param totalVolume            Aggregated shares traded throughout the day, including pre/post market hours.
+     * @param tradeTime              Last trade time in milliseconds since Epoch
+     * @param underlyingPrice        Underlying Price
+     * @param vega                   Vega Value
+     * @param volatility             Option Risk/Volatility Measurement
      */
     case class QuoteOption(
       `52WeekHigh`: BigDecimal,
@@ -472,24 +391,24 @@ object QuoteResponse {
      *
      * Reference data of Option security
      *
-     * @param contractType Indicates call or put
-     * @param cusip CUSIP of Instrument
+     * @param contractType     Indicates call or put
+     * @param cusip            CUSIP of Instrument
      * @param daysToExpiration Days to Expiration
-     * @param deliverables Unit of trade
-     * @param description Description of Instrument
-     * @param exchange Exchange Code
-     * @param exchangeName Exchange Name
-     * @param exerciseType option contract exercise type America or European
-     * @param expirationDay Expiration Day
-     * @param expirationMonth Expiration Month
-     * @param expirationType M for End Of Month Expiration Calendar Cycle. (To match the last business day of the month), Q for Quarterly expirations (last business day of the quarter month MAR/JUN/SEP/DEC), W for Weekly expiration (also called Friday Short Term Expirations) and S for Expires 3rd Friday of the month (also known as regular options).
-     * @param expirationYear Expiration Year
-     * @param isPennyPilot Is this contract part of the Penny Pilot program
-     * @param lastTradingDay Last trading day
-     * @param multiplier Option multiplier
-     * @param settlementType option contract settlement type AM or PM
-     * @param strikePrice Strike Price
-     * @param underlying A company, index or fund name
+     * @param deliverables     Unit of trade
+     * @param description      Description of Instrument
+     * @param exchange         Exchange Code
+     * @param exchangeName     Exchange Name
+     * @param exerciseType     option contract exercise type America or European
+     * @param expirationDay    Expiration Day
+     * @param expirationMonth  Expiration Month
+     * @param expirationType   M for End Of Month Expiration Calendar Cycle. (To match the last business day of the month), Q for Quarterly expirations (last business day of the quarter month MAR/JUN/SEP/DEC), W for Weekly expiration (also called Friday Short Term Expirations) and S for Expires 3rd Friday of the month (also known as regular options).
+     * @param expirationYear   Expiration Year
+     * @param isPennyPilot     Is this contract part of the Penny Pilot program
+     * @param lastTradingDay   Last trading day
+     * @param multiplier       Option multiplier
+     * @param settlementType   option contract settlement type AM or PM
+     * @param strikePrice      Strike Price
+     * @param underlying       A company, index or fund name
      */
     case class ReferenceOption(
       contractType: ContractType,
@@ -512,8 +431,9 @@ object QuoteResponse {
       underlying: String,
     ) extends Reference
 
-    private[QuoteResponse] implicit val quoteOptionReads: Reads[QuoteOption] = Json.reads[QuoteOption]
-    private[QuoteResponse] implicit val referenceOptionReads: Reads[ReferenceOption] = Json.reads[ReferenceOption]
+    private[QuoteResponse] implicit val quoteOptionDecoder: JsonDecoder[QuoteOption] = DeriveJsonDecoder.gen[QuoteOption]
+    private[QuoteResponse] implicit val referenceOptionDecoder: JsonDecoder[ReferenceOption] = DeriveJsonDecoder.gen[ReferenceOption]
+
   }
   object ForexResponse {
     case class QuoteForex(
@@ -539,6 +459,7 @@ object QuoteResponse {
       totalVolume: Option[Long],
       tradeTime: DateTime
     ) extends Quote
+
     case class ReferenceForex(
       description: String,
       exchange: String,
@@ -549,8 +470,8 @@ object QuoteResponse {
       tradingHours: Option[String],
     ) extends Reference
 
-    private[QuoteResponse] implicit val quoteForexReads: Reads[QuoteForex] = Json.reads[QuoteForex]
-    private[QuoteResponse] implicit val referenceForexReads: Reads[ReferenceForex] = Json.reads[ReferenceForex]
+    private[QuoteResponse] implicit val quoteForexDecoder: JsonDecoder[QuoteForex] = DeriveJsonDecoder.gen[QuoteForex]
+    private[QuoteResponse] implicit val referenceForexDecoder: JsonDecoder[ReferenceForex] = DeriveJsonDecoder.gen[ReferenceForex]
   }
   object FutureResponse {
     case class QuoteFuture(
@@ -582,6 +503,7 @@ object QuoteResponse {
       totalVolume: Option[Long],
       tradeTime: DateTime,
     ) extends Quote
+
     case class ReferenceFuture(
       description: String,
       exchange: String,
@@ -596,8 +518,8 @@ object QuoteResponse {
       product: String,
     ) extends Reference
 
-    private[QuoteResponse] implicit val quoteFutureReads: Reads[QuoteFuture] = Json.reads[QuoteFuture]
-    private[QuoteResponse] implicit val referenceFutureReads: Reads[ReferenceFuture] = Json.reads[ReferenceFuture]
+    private[QuoteResponse] implicit val quoteFutureDecoder: JsonDecoder[QuoteFuture] = DeriveJsonDecoder.gen[QuoteFuture]
+    private[QuoteResponse] implicit val referenceFutureDecoder: JsonDecoder[ReferenceFuture] = DeriveJsonDecoder.gen[ReferenceFuture]
   }
   object FutureOptionResponse {
     case class QuoteFutureOption(
@@ -640,8 +562,8 @@ object QuoteResponse {
       underlying: String,
     ) extends Reference
 
-    private[QuoteResponse] implicit val quoteFutureOptionReads: Reads[QuoteFutureOption] = Json.reads[QuoteFutureOption]
-    private[QuoteResponse] implicit val referenceFutureOptionReads: Reads[ReferenceFutureOption] = Json.reads[ReferenceFutureOption]
+    private[QuoteResponse] implicit val quoteFutureOptionDecoder: JsonDecoder[QuoteFutureOption] = DeriveJsonDecoder.gen[QuoteFutureOption]
+    private[QuoteResponse] implicit val referenceFutureOptionDecoder: JsonDecoder[ReferenceFutureOption] = DeriveJsonDecoder.gen[ReferenceFutureOption]
   }
   object IndexResponse {
     case class QuoteIndex(
@@ -658,14 +580,15 @@ object QuoteResponse {
       totalVolume: Option[Long],
       tradeTime: DateTime,
     ) extends Quote
+
     case class ReferenceIndex(
       description: String,
       exchange: String,
       exchangeName: String,
     ) extends Reference
+    private[QuoteResponse] implicit val quoteIndexDecoder: JsonDecoder[QuoteIndex] = DeriveJsonDecoder.gen[QuoteIndex]
+    private[QuoteResponse] implicit val referenceIndexDecoder: JsonDecoder[ReferenceIndex] = DeriveJsonDecoder.gen[ReferenceIndex]
 
-    private[QuoteResponse] implicit val quoteIndexReads: Reads[QuoteIndex] = Json.reads[QuoteIndex]
-    private[QuoteResponse] implicit val referenceIndexReads: Reads[ReferenceIndex] = Json.reads[ReferenceIndex]
   }
   object MutualFundResponse {
     case class QuoteMutualFund(
@@ -680,6 +603,7 @@ object QuoteResponse {
       tradeTime: DateTime,
       lastPrice: BigDecimal,
     ) extends Quote
+
     case class ReferenceMutualFund(
       cusip: String,
       description: String,
@@ -687,31 +611,40 @@ object QuoteResponse {
       exchangeName: String,
     ) extends Reference
 
-    private[QuoteResponse] implicit val quoteMutualFundReads: Reads[QuoteMutualFund] = Json.reads[QuoteMutualFund]
-    private[QuoteResponse] implicit val referenceMutualFundReads: Reads[ReferenceMutualFund] = Json.reads[ReferenceMutualFund]
+    private[QuoteResponse] implicit val quoteMutualFundDecoder: JsonDecoder[QuoteMutualFund] = DeriveJsonDecoder.gen[QuoteMutualFund]
+    private[QuoteResponse] implicit val referenceMutualFundDecoder: JsonDecoder[ReferenceMutualFund] = DeriveJsonDecoder.gen[ReferenceMutualFund]
   }
-  private implicit val fundamentalReads: Reads[Fundamental] = Json.reads[Fundamental]
-  private implicit val equityResponseReads: Reads[EquityResponse] = Json.reads[EquityResponse]
-  private implicit val optionResponseReads: Reads[OptionResponse] = Json.reads[OptionResponse]
-  private implicit val forexResponseReads: Reads[ForexResponse] = Json.reads[ForexResponse]
-  private implicit val futureResponseReads: Reads[FutureResponse] = Json.reads[FutureResponse]
-  private implicit val futureOptionResponseReads: Reads[FutureOptionResponse] = Json.reads[FutureOptionResponse]
-  private implicit val indexResponseReads: Reads[IndexResponse] = Json.reads[IndexResponse]
-  private implicit val mutualFundResponseReads: Reads[MutualFundResponse] = Json.reads[MutualFundResponse]
-  private implicit val quoteErrorReads: Reads[QuoteError] = Json.reads[QuoteError]
-  
-  implicit val reads: Reads[QuoteResponse] = (json: JsValue) => (json \ "assetMainType")
-    .validate[AssetMainType] match {
-      case JsSuccess(AssetMainType.Equity, _) => equityResponseReads.reads(json)
-      case JsSuccess(AssetMainType.Option, _) => optionResponseReads.reads(json)
-      case JsSuccess(AssetMainType.Forex, _) => forexResponseReads.reads(json)
-      case JsSuccess(AssetMainType.Future, _) => futureResponseReads.reads(json)
-      case JsSuccess(AssetMainType.FutureOption, _) => futureOptionResponseReads.reads(json)
-      case JsSuccess(AssetMainType.Index, _) => indexResponseReads.reads(json)
-      case JsSuccess(AssetMainType.MutualFund, _) => mutualFundResponseReads.reads(json)
-      case err: JsError => quoteErrorReads.reads(json)
+  private implicit val fundamentalDecoder: JsonDecoder[Fundamental] = DeriveJsonDecoder.gen[Fundamental]
+
+  private implicit val equityResponseDecoder: JsonDecoder[EquityResponse] =
+    DeriveJsonDecoder.gen[EquityResponse]
+  private implicit val optionResponseDecoder: JsonDecoder[OptionResponse] =
+    DeriveJsonDecoder.gen[OptionResponse]
+  private implicit val forexResponseDecoder: JsonDecoder[ForexResponse] =
+    DeriveJsonDecoder.gen[ForexResponse]
+  private implicit val futureResponseDecoder: JsonDecoder[FutureResponse] =
+    DeriveJsonDecoder.gen[FutureResponse]
+  private implicit val futureOptionResponseDecoder: JsonDecoder[FutureOptionResponse] =
+    DeriveJsonDecoder.gen[FutureOptionResponse]
+  private implicit val indexResponseDecoder: JsonDecoder[IndexResponse] =
+    DeriveJsonDecoder.gen[IndexResponse]
+  private implicit val mutualFundResponseDecoder: JsonDecoder[MutualFundResponse] =
+    DeriveJsonDecoder.gen[MutualFundResponse]
+  private implicit val quoteErrorDecoder: JsonDecoder[QuoteError] = DeriveJsonDecoder.gen[QuoteError]
+
+
+  implicit val quoteResponseDecoder: JsonDecoder[QuoteResponse] = JsonDecoder[Json].mapOrFail { json =>
+    json.get(JsonCursor.field("assetMainType").isString) match {
+      case Left(value) => json.as[QuoteError]
+      case Right(Json.Str("EQUITY")) => json.as[EquityResponse]
+      case Right(Json.Str("OPTION")) => json.as[OptionResponse]
+      case Right(Json.Str("FOREX")) => json.as[ForexResponse]
+      case Right(Json.Str("FUTURE")) => json.as[FutureResponse]
+      case Right(Json.Str("FUTURE_OPTION")) => json.as[FutureOptionResponse]
+      case Right(Json.Str("INDEX")) => json.as[IndexResponse]
+      case Right(Json.Str("MUTUAL_FUND")) => json.as[MutualFundResponse]
+      case Right(zio.json.ast.Json.Str(assetMainType)) => Left(f"$assetMainType is an unexpected AssetMainType.")
     }
+  }
+
 }
-
-
-

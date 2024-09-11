@@ -1,7 +1,7 @@
 package gg.sina.schwab
 package models.trader_api
 
-import play.api.libs.json.{Json, Reads}
+import zio.json.{DeriveJsonDecoder, JsonDecoder}
 
 case class Position(
   shortQuantity: BigDecimal,
@@ -27,5 +27,5 @@ case class Position(
 )
 
 object Position {
-  implicit val positionReads: Reads[Position] = Json.reads[Position]
+  implicit val positionDecoder: JsonDecoder[Position] = DeriveJsonDecoder.gen[Position]
 }

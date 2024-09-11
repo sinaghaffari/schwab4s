@@ -1,9 +1,8 @@
 package gg.sina.schwab
 package models.market_data_api
 
-import play.api.libs.json.{Json, OFormat}
-
 import java.util.UUID
+import zio.json._
 
 case class ErrorResponse(
   id: UUID,
@@ -19,6 +18,7 @@ object ErrorResponse {
     parameter: String,
     header: String,
   )
-  implicit val errorSourceFormat: OFormat[ErrorSource] = Json.format[ErrorSource]
-  implicit val formats: OFormat[ErrorResponse] = Json.format[ErrorResponse]
+  implicit val errorSourceCodec: JsonCodec[ErrorSource] = DeriveJsonCodec.gen[ErrorSource]
+  implicit val codec: JsonCodec[ErrorResponse] =
+    DeriveJsonCodec.gen[ErrorResponse]
 }

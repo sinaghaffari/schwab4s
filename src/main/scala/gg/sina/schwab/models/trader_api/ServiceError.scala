@@ -1,10 +1,10 @@
 package gg.sina.schwab
 package models.trader_api
 
-import play.api.libs.json.{Json, Reads}
+import zio.json.{DeriveJsonDecoder, JsonDecoder}
 
 case class ServiceError(message: String, errors: Vector[String]) extends Exception(message)
 
 object ServiceError {
-  implicit val serviceErrorReads: Reads[ServiceError] = Json.reads[ServiceError]
+  implicit val serviceErrorDecoder: JsonDecoder[ServiceError] = DeriveJsonDecoder.gen[ServiceError]
 }
