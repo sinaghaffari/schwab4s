@@ -1,7 +1,7 @@
 lazy val scala3_5_0 = "3.5.0"
 lazy val supportedScalaVersions = Vector(scala3_5_0)
 
-ThisBuild / version := "1.0.0"
+ThisBuild / version := "1.0.1"
 ThisBuild / organization := "gg.sina"
 ThisBuild / scalaVersion := scala3_5_0
 ThisBuild / crossScalaVersions := supportedScalaVersions
