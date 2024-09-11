@@ -30,7 +30,7 @@ case class SchwabAuth private(
         .flatMap(body =>
           ZIO
             .fromEither(body.fromJson[ErrorResponse])
-            .mapError(error => Exception(f"Request: ${req}\nResponse Body: $body\nError: $error"))
+            .mapError(error => Exception(f"Request: $req\nResponse Body: $body\nError: $error"))
             .flatMap(ZIO.fail)
         )
     }
