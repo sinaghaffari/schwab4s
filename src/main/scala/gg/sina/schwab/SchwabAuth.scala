@@ -27,14 +27,21 @@ case class SchwabAuth private(
       case 200 => ZIO.succeed(response, this)
       case 401 if retryWithRefresh => refresh.flatMap(_.request(req, retryWithRefresh = false))
       case _ => response.body.asString
-        .flatMap(body => ZIO.fromEither(body.fromJson[ErrorResponse]).mapError(Exception(_)).flatMap(ZIO.fail))
+        .flatMap(body =>
+          ZIO
+            .fromEither(body.fromJson[ErrorResponse])
+            .mapError(error => Exception(f"Request: ${req}\nResponse Body: $body\nError: $error"))
+            .flatMap(ZIO.fail)
+        )
     }
   } yield result
 
   protected def refresh: RIO[Scope, SchwabAuth] = for {
     response <- client.request(config.getRefreshRequest(refreshToken))
     body <- response.body.asString
-    authTokenResponse <- ZIO.fromEither(body.fromJson[SchwabAuth.AuthTokenResponse]).mapError(Exception(_))
+    authTokenResponse <- ZIO
+      .fromEither(body.fromJson[SchwabAuth.AuthTokenResponse])
+      .mapError(error => Exception(f"Response Body: $body\nError: $error"))
     _ <- ZStream
       .succeed(authTokenResponse.refresh_token)
       .via(ZPipeline.utf8Encode)
@@ -90,7 +97,9 @@ object SchwabAuth {
         ))
     )
     body <- response.body.asString
-    authTokenResponse <- ZIO.fromEither(body.fromJson[AuthTokenResponse]).mapError(Exception(_))
+    authTokenResponse <- ZIO
+      .fromEither(body.fromJson[AuthTokenResponse])
+      .mapError(error => Exception(f"Response Body: $body\nError: $error"))
     _ <- ZStream.succeed(refreshToken).via(ZPipeline.utf8Encode).run(fileConnector.writeFileName(config.refresh_token_file))
     _ <- ZIO.log(f"Saved new refresh token to file (${config.refresh_token_file})")
   } yield authTokenResponse
@@ -112,7 +121,9 @@ object SchwabAuth {
         ))
     )
     body <- response.body.asString
-    authTokenResponse <- ZIO.fromEither(body.fromJson[AuthTokenResponse]).mapError(Exception(_))
+    authTokenResponse <- ZIO
+      .fromEither(body.fromJson[AuthTokenResponse])
+      .mapError(error => Exception(f"Response Body: $body\nError: $error"))
     _ <- ZStream
       .succeed(authTokenResponse.refresh_token)
       .via(ZPipeline.utf8Encode)
